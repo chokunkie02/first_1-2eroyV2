@@ -7,6 +7,7 @@ import '../services/scan_history_service.dart';
 import '../services/database_service.dart';
 import '../models/chat_message.dart';
 
+import '../services/income_scheduler_service.dart';
 import '../services/receipt_processor.dart';
 import '../core/constants.dart'; // For ChatMode and Prompts
 import 'dart:async'; // Add async import for Timer
@@ -15,12 +16,16 @@ class AppGlobalProvider extends ChangeNotifier with WidgetsBindingObserver {
   final AIService _aiService = AIService();
   final SlipScannerService _scannerService = SlipScannerService();
   final ScanHistoryService _historyService = ScanHistoryService();
+  final IncomeSchedulerService _schedulerService = IncomeSchedulerService();
 
   bool _isAIModelLoaded = false;
   bool get isAIModelLoaded => _isAIModelLoaded;
 
   List<SlipData> _pendingSlips = [];
   List<SlipData> get pendingSlips => _pendingSlips;
+  
+  int _pendingIncomeCount = 0;
+  int get pendingCount => _pendingSlips.length + _pendingIncomeCount;
 
   bool _isScanning = false;
   bool get isScanning => _isScanning;
@@ -37,16 +42,31 @@ class AppGlobalProvider extends ChangeNotifier with WidgetsBindingObserver {
     _initAI();
 
     // 2. Auto-Scan Slips (Using "Button" Logic)
-    // We delay slightly to ensure DB is ready if needed, though Hive should be ready by now.
     Future.delayed(const Duration(seconds: 1), () {
+      _resumeStuckSlips(); // Resume processing stuck slips
       scanSlips(); 
+      checkDueIncome();
     });
 
     // 3. Periodic Scan (Every 60 Seconds)
     _scanTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
-      print("[AppGlobalProvider] Periodic Scan Triggered");
+      // print("[AppGlobalProvider] Periodic Scan Triggered"); // Reduced noise
       scanSlips();
+      checkDueIncome(); 
     });
+  }
+
+  Future<void> _resumeStuckSlips() async {
+    print("[AppGlobalProvider] Checking for stuck slips...");
+    final box = DatabaseService().chatBox;
+    // Find messages that have image but no slipData (stuck in "Reading...")
+    final stuckMessages = box.values.where((m) => m.imagePath != null && m.slipData == null).toList();
+    
+    if (stuckMessages.isNotEmpty) {
+      print("[AppGlobalProvider] Found ${stuckMessages.length} stuck slips. Resuming...");
+      final files = stuckMessages.map((m) => File(m.imagePath!)).toList();
+      _processSlipQueue(files);
+    }
   }
 
   @override
@@ -54,7 +74,24 @@ class AppGlobalProvider extends ChangeNotifier with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) {
       print("[AppGlobalProvider] App Resumed -> Triggering Scan");
       scanSlips();
+      checkDueIncome();
     }
+  }
+
+  Future<void> checkDueIncome() async {
+    await _schedulerService.checkDueItems(this);
+  }
+
+  void updatePendingIncomeCount() {
+    // Count pending reminder messages in ChatBox
+    final pendingReminders = DatabaseService().chatBox.values.where((msg) {
+      if (msg.mode != 'income' || msg.isSaved) return false;
+      if (msg.expenseData == null || msg.expenseData!.isEmpty) return false;
+      return msg.expenseData![0]['type'] == 'reminder';
+    }).length;
+    
+    _pendingIncomeCount = pendingReminders;
+    notifyListeners();
   }
 
   @override
@@ -67,11 +104,13 @@ class AppGlobalProvider extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> _initAI() async {
     try {
       await _aiService.initialize();
-      _isAIModelLoaded = true;
-      notifyListeners();
       print("[AppGlobalProvider] AI Model Loaded.");
     } catch (e) {
       print("[AppGlobalProvider] AI Init Error: $e");
+      // Proceed anyway so the app doesn't get stuck
+    } finally {
+      _isAIModelLoaded = true;
+      notifyListeners();
     }
   }
 
