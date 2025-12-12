@@ -42,18 +42,31 @@ class AppGlobalProvider extends ChangeNotifier with WidgetsBindingObserver {
     _initAI();
 
     // 2. Auto-Scan Slips (Using "Button" Logic)
-    // We delay slightly to ensure DB is ready if needed, though Hive should be ready by now.
     Future.delayed(const Duration(seconds: 1), () {
+      _resumeStuckSlips(); // Resume processing stuck slips
       scanSlips(); 
       checkDueIncome();
     });
 
-    // 3. Periodic Scan (Every 5 Seconds)
+    // 3. Periodic Scan (Every 60 Seconds)
     _scanTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
-      print("[AppGlobalProvider] Periodic Scan Triggered");
+      // print("[AppGlobalProvider] Periodic Scan Triggered"); // Reduced noise
       scanSlips();
-      checkDueIncome(); // Check for due reminders every minute
+      checkDueIncome(); 
     });
+  }
+
+  Future<void> _resumeStuckSlips() async {
+    print("[AppGlobalProvider] Checking for stuck slips...");
+    final box = DatabaseService().chatBox;
+    // Find messages that have image but no slipData (stuck in "Reading...")
+    final stuckMessages = box.values.where((m) => m.imagePath != null && m.slipData == null).toList();
+    
+    if (stuckMessages.isNotEmpty) {
+      print("[AppGlobalProvider] Found ${stuckMessages.length} stuck slips. Resuming...");
+      final files = stuckMessages.map((m) => File(m.imagePath!)).toList();
+      _processSlipQueue(files);
+    }
   }
 
   @override

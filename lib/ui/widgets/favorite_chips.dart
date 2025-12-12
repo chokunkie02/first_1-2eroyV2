@@ -134,48 +134,59 @@ class _FavoriteChipsState extends State<FavoriteChips> {
                   final index = entry.key;
                   final fav = entry.value;
                   
-                  return ReorderableDragStartListener(
+                  return Padding(
                     key: ValueKey(fav.id),
-                    index: index,
-                    child: Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          onTap: () => widget.onSelected(fav),
-                          borderRadius: BorderRadius.circular(12),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                            constraints: const BoxConstraints(minWidth: 80),
-                            decoration: BoxDecoration(
-                              color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  fav.title,
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 13,
-                                    color: theme.colorScheme.onSurface,
+                    padding: const EdgeInsets.only(right: 8),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () => widget.onSelected(fav), // Reverted to original onTap logic
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          padding: const EdgeInsets.fromLTRB(12, 8, 4, 8), // Adjusted padding
+                          decoration: BoxDecoration(
+                            color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05), // Reverted to original color logic
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    fav.title,
+                                    style: TextStyle( // Reverted to original style
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13,
+                                      color: theme.colorScheme.onSurface,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  NumberFormat('#,##0').format(fav.amount),
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: theme.colorScheme.primary,
-                                    fontWeight: FontWeight.w500,
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    NumberFormat('#,##0').format(fav.amount),
+                                    style: TextStyle( // Reverted to original style
+                                      fontSize: 11,
+                                      color: theme.colorScheme.primary,
+                                      fontWeight: FontWeight.w500,
+                                    ),
                                   ),
+                                ],
+                              ),
+                              const SizedBox(width: 8),
+                              // Drag Handle
+                              ReorderableDragStartListener(
+                                index: index,
+                                child: Icon(
+                                  Icons.drag_indicator,
+                                  color: Colors.grey.withOpacity(0.5),
+                                  size: 20,
                                 ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
                         ),
                       ),

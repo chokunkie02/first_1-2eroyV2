@@ -607,6 +607,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                 )
               else if (msg.expenseData![0]['type'] == 'income')
                   AIIncomeCardWidget(
+                      key: ValueKey(msg.key), // Add Key to force rebuild
                       message: msg,
                       onSave: (m) => _saveExpense(m, 0),
                       onDelete: _deleteMessage,
